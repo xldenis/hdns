@@ -7,6 +7,7 @@ import           Data.Binary.Strict.Get
 import           Data.Bits
 import qualified Data.ByteString        as B
 import           Data.Word
+import Control.Monad
 
 data Message = Message{ tx_id     :: Int
                       , flags     :: Int
@@ -30,9 +31,7 @@ data ResourceData =
     IPAddr (Int, Int, Int, Int)
   | Bytes B.ByteString deriving (Show)
 
-readLabel = do
-  n <- getWord8
-  getByteString $ fromIntegral n
+readLabel = int8 >>= getByteString
 
 readOffset = do
   x <- getWord16be
@@ -40,9 +39,9 @@ readOffset = do
 
 readEncodedString s pkt = do
     c <- lookAhead getWord8
-    if c == 0
-      then skip 1 >>= \_ -> return $ reverse s
-      else if (c .&. 192) == 192
+    when (c == 0) $ skip 1 *> return $ reverse s
+
+    if (c .&. 192) == 192
       then
              readOffset >>= \offset -> do
                let (x, _) = runGet (readEncodedString [] pkt) (B.drop offset pkt)
@@ -53,49 +52,49 @@ readEncodedString s pkt = do
              readLabel >>= \o -> readEncodedString (o:s) pkt
 
 readIP = do
-  x <- getWord8
-  y <- getWord8
-  w <- getWord8
-  z <- getWord8
+  x <- int8
+  y <- int8
+  w <- int8
+  z <- int8
 
-  return $ IPAddr (fromIntegral x,fromIntegral y,fromIntegral w,fromIntegral z)
+  return $ IPAddr (x,y,w,z)
 
 readAnswer bytes = do
   name <- readEncodedString [] bytes
-  rtype <- getWord16be
-  rclass <- getWord16be
-  ttl <- getWord32be
-  rd_len <- getWord16be
+  rtype <- int16
+  rclass <- int16
+  ttl <- int32
+  rd_len <- int16
 
   rdata <- case rtype of
-            1 -> do
-              ip <- readIP
-              return ip
-            _ -> do
-               b <- getByteString $ fromIntegral rd_len
-               return $ Bytes b
+            1 -> readIP
+            _ -> Bytes <$> (getByteString $ rd_len)
 
-  return $ ResourceRecord name (fromIntegral rtype) (fromIntegral rclass) (fromIntegral ttl) rdata
+  return $ ResourceRecord name rtype rclass ttl rdata
 
 
 readQuestion bytes = do
   name <- readEncodedString [] bytes
-  qtype <- getWord16be
-  qclass <- getWord16be
-  return $ Question name (fromIntegral qtype) (fromIntegral qclass)
+  qtype <- int16
+  qclass <- int16
+  return $ Question name qtype qclass
+
+int16 = fromIntegral <$> getWord16be
+int32 = fromIntegral <$> getWord32be
+int8  = fromIntegral <$> getWord8
 
 readMessage bytes = do
-  tx_id <- getWord16be
-  flags <- getWord16be
-  query_count <- getWord16be
-  an_count <- getWord16be
-  ns_count <- getWord16be
-  ar_count <- getWord16be
+  tx_id <- int16
+  flags <- int16
+  query_count <- int16
+  an_count <- int16
+  ns_count <- int16
+  ar_count <- int16
 
-  queries <- mapM (\_ -> readQuestion bytes) [1..query_count]
-  answers <- mapM (\_ -> readAnswer bytes) [1..an_count]
+  queries <- replicateM query_count (readQuestion bytes)
+  answers <- replicateM an_count (readAnswer bytes)
 
-  return $ Message (fromIntegral tx_id) (fromIntegral flags) queries answers
+  return $ Message (tx_id) ( flags) queries answers
 
 readPacket :: String -> IO Message
 readPacket s = do
