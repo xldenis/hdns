@@ -93,8 +93,8 @@ readMessage bytes = do
   ar_count <- getWord16be
 
   queries <- mapM (\_ -> readQuestion bytes) [1..query_count]
+  answers <- mapM (\_ -> readAnswer bytes) [1..an_count]
 
-  answers <- mapM (\_ -> do readAnswer bytes) [1..an_count]
   return $ Message (fromIntegral tx_id) (fromIntegral flags) queries answers
 
 readPacket :: String -> IO Message
