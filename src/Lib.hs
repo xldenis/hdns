@@ -3,27 +3,27 @@ module Lib
     ( readPacket
     ) where
 
-import qualified Data.ByteString as B
-import Data.Binary.Strict.Get
-import Data.Word
-import Data.Bits
+import           Data.Binary.Strict.Get
+import           Data.Bits
+import qualified Data.ByteString        as B
+import           Data.Word
 
-data Message = Message{ tx_id :: Int
-                      , flags :: Int
+data Message = Message{ tx_id     :: Int
+                      , flags     :: Int
                       , questions :: [Question]
-                      , answers :: [ResourceRecord]
+                      , answers   :: [ResourceRecord]
                       } deriving (Show)
 
-data Question = Question { name :: [B.ByteString]
-                         , qtype :: Int
+data Question = Question { name   :: [B.ByteString]
+                         , qtype  :: Int
                          , qclass :: Int
                          } deriving (Show)
 
-data ResourceRecord = ResourceRecord { rname :: [B.ByteString]
-                                     , rtype :: Int
+data ResourceRecord = ResourceRecord { rname  :: [B.ByteString]
+                                     , rtype  :: Int
                                      , rclass :: Int
-                                     , rttl :: Int
-                                     , rdata :: ResourceData
+                                     , rttl   :: Int
+                                     , rdata  :: ResourceData
                                      } deriving (Show)
 
 data ResourceData =
@@ -47,7 +47,7 @@ readEncodedString s pkt = do
              readOffset >>= \offset -> do
                let (x, _) = runGet (readEncodedString [] pkt) (B.drop offset pkt)
                case x of
-                  Left x -> fail $ "can't find offset: " ++ show offset
+                  Left x  -> fail $ "can't find offset: " ++ show offset
                   Right x -> return x
       else
              readLabel >>= \o -> readEncodedString (o:s) pkt
@@ -103,4 +103,4 @@ readPacket s = do
   let r =  runGet (readMessage bytes) bytes
   case (fst r) of
     Left error -> fail error
-    Right x -> return x
+    Right x    -> return x
