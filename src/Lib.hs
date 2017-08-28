@@ -36,8 +36,7 @@ readLabel = do
 
 readOffset = do
   x <- getWord16be
-  let xx  = fromIntegral $ x .&. 0x3fff
-  return xx
+  return $ fromIntegral $ x .&. 0x3fff
 
 readEncodedString s pkt = do
     c <- lookAhead getWord8
@@ -60,7 +59,6 @@ readIP = do
   z <- getWord8
 
   return $ IPAddr (fromIntegral x,fromIntegral y,fromIntegral w,fromIntegral z)
-
 
 readAnswer bytes = do
   name <- readEncodedString [] bytes
